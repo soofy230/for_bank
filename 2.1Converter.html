@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Конвертер изображений | BL-Online</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/libheif-js@1.19.8/libheif-wasm/libheif-bundle.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+background: linear-gradient(135deg, #40BFC4 0%, #28A59B 100%);
+min-height: 100vh;
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 20px;
+}
+.brand-header {
+width: 100%; max-width: 800px; margin-bottom: 20px;
+display: flex; align-items: center; justify-content: center;
+background: white; padding: 15px 30px; border-radius: 16px;
+box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+.brand-logo svg { height: 48px; width: auto; }
+.box {
+background: white; padding: 35px; border-radius: 20px;
+box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+width: 100%; max-width: 800px; text-align: center;
+}
+.drop-zone {
+border: 2px dashed #40BFC4; padding: 45px 20px; border-radius: 16px;
+cursor: pointer; background: linear-gradient(135deg, #E8F8F9 0%, #D5F2F3 100%);
+margin-bottom: 20px; transition: all 0.3s ease; position: relative; overflow: hidden;
+}
+.drop-zone::before {
+content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+background: linear-gradient(90deg, transparent, rgba(64,191,196,0.1), transparent);
+transition: left 0.5s;
+}
+.drop-zone:hover::before { left: 100%; }
+.drop-zone.dragover {
+background: linear-gradient(135deg, #D5F2F3 0%, #C5EBED 100%);
+border-color: #28A59B; transform: scale(1.02);
+box-shadow: 0 8px 25px rgba(64,191,196,0.3);
+}
+.drop-zone-icon { font-size: 48px; margin-bottom: 15px; display: block; }
+.drop-zone strong { color: #28A59B; font-size: 18px; font-weight: 600; display: block; margin-bottom: 8px; }
+.drop-zone p { font-size: 13px; color: #6B7280; margin: 0; }
+.file-info-bar {
+display: none; background: #F9FAFB; border: 2px solid #E5E7EB; border-radius: 12px;
+padding: 14px 20px; margin-bottom: 15px; align-items: center; justify-content: space-between;
+transition: all 0.3s ease;
+}
+.file-info-bar.show {
+display: flex; border-color: #40BFC4;
+background: linear-gradient(135deg, #F0F9F9 0%, #E8F8F9 100%);
+}
+.file-count { color: #374151; font-size: 14px; font-weight: 500; }
+.file-count strong { color: #28A59B; font-weight: 600; }
+.btn-reset {
+background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white;
+border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600;
+cursor: pointer; font-size: 14px; transition: all 0.2s;
+display: flex; align-items: center; gap: 8px;
+box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+}
+.btn-reset:hover {
+background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+transform: translateY(-2px); box-shadow: 0 6px 16px rgba(239,68,68,0.4);
+}
+.btn-reset:active { transform: translateY(0); }
+
+.compress-toggle {
+display: flex; align-items: center; justify-content: center; gap: 15px;
+margin: 0 0 15px 0; padding: 12px 20px; background: #F9FAFB;
+border-radius: 12px; border: 2px solid #E5E7EB; transition: all 0.3s ease; flex-wrap: wrap;
+}
+.compress-toggle.active-toggle {
+border-color: #34C759; background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+}
+.toggle-switch {
+position: relative; width: 51px; height: 31px; background: #E5E7EB;
+border-radius: 31px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0;
+}
+.toggle-switch.active {
+background: linear-gradient(135deg, #34C759 0%, #30D158 100%);
+box-shadow: 0 0 8px rgba(52,199,89,0.4);
+}
+.toggle-switch::after {
+content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px;
+background: white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+.toggle-switch.active::after { transform: translateX(20px); }
+.toggle-label { font-size: 14px; color: #374151; font-weight: 500; cursor: pointer; user-select: none; }
+.slider-container {
+display: flex; align-items: center; gap: 10px; min-width: 200px; max-width: 260px;
+}
+.slider-label { font-size: 12px; color: #6B7280; white-space: nowrap; }
+.slider-value { font-size: 13px; font-weight: 600; color: #28A59B; min-width: 40px; text-align: right; }
+input[type="range"] {
+flex: 1; height: 6px; border-radius: 3px; background: #E5E7EB;
+outline: none; -webkit-appearance: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+-webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+border-radius: 50%; background: #40BFC4; cursor: pointer;
+box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+background: #28A59B; transform: scale(1.1);
+}
+input[type="range"]::-moz-range-thumb {
+width: 18px; height: 18px; border-radius: 50%; background: #40BFC4;
+cursor: pointer; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.compress-toggle:not(.active-toggle) .slider-container { opacity: 0.4; pointer-events: none; }
+
+.watermark-section {
+margin: 10px 0; padding: 10px 15px; background: #F9FAFB;
+border-radius: 12px; border: 2px solid #E5E7EB;
+display: none; transition: all 0.3s ease;
+}
+.watermark-section.show { display: block; }
+.watermark-toggle {
+display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px;
+}
+.watermark-toggle .toggle-switch { width: 44px; height: 26px; }
+.watermark-toggle .toggle-switch::after { width: 22px; height: 22px; top: 2px; left: 2px; }
+.watermark-toggle .toggle-switch.active::after { transform: translateX(18px); }
+.watermark-toggle .toggle-label { font-size: 13px; }
+
+.watermark-options {
+display: none;
+gap: 15px;
+justify-content: center;
+align-items: flex-start;
+}
+.watermark-options.show {
+display: flex;
+}
+.position-selector { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.position-selector label { font-size: 11px; color: #6B7280; font-weight: 500; }
+.position-grid {
+display: grid; grid-template-columns: repeat(3, 28px); grid-template-rows: repeat(3, 28px);
+gap: 3px; background: white; padding: 6px; border-radius: 6px; border: 2px solid #E5E7EB;
+}
+.position-btn {
+width: 28px; height: 28px; border: 2px solid #E5E7EB; background: #F9FAFB;
+border-radius: 5px; cursor: pointer; transition: all 0.2s;
+display: flex; align-items: center; justify-content: center;
+font-size: 9px; color: #6B7280; font-weight: 700;
+}
+.position-btn:hover { border-color: #40BFC4; background: #E8F8F9; }
+.position-btn.active {
+border-color: #28A59B; background: #28A59B; color: white;
+}
+
+.sliders-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 18px;
+    width: 280px;
+}
+.sliders-column .slider-container {
+    display: grid;
+    grid-template-columns: 110px 1fr 50px;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    min-width: unset;
+    max-width: unset;
+}
+.sliders-column .slider-label {
+    text-align: left;
+    justify-self: start;
+}
+.sliders-column input[type="range"] {
+    justify-self: stretch;
+    width: 100%;
+}
+.sliders-column .slider-value {
+    text-align: right;
+    justify-self: end;
+}
+
+.btn-container {
+    display: flex;
+    gap: 12px;
+    margin: 8px 0;
+    width: 100%;
+}
+.btn {
+    flex: 1;
+    padding: 16px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+    transition: all 0.2s;
+    font-size: 15px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    box-shadow: 0 4px 12px rgba(64,191,196,0.3);
+    margin: 0;
+}
+.btn-zip, .btn-pdf {
+    background: linear-gradient(135deg, #40BFC4 0%, #28A59B 100%);
+}
+.btn-zip:hover:not(:disabled), .btn-pdf:hover:not(:disabled) {
+    background: linear-gradient(135deg, #28A59B 0%, #1E8B82 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(64,191,196,0.4);
+}
+.btn:disabled { background: #D1D5DB; cursor: not-allowed; box-shadow: none; }
+
+.files-section {
+margin: 20px 0; text-align: left; border: 2px solid #E5E7EB;
+border-radius: 16px; padding: 15px; background: #F9FAFB; display: none;
+}
+.files-section.show {
+display: block; border-color: #40BFC4;
+background: linear-gradient(135deg, #F0F9F9 0%, #E8F8F9 100%);
+}
+.section-title {
+font-weight: 600; color: #28A59B; margin-bottom: 12px;
+font-size: 15px; display: flex; align-items: center; gap: 8px;
+}
+.section-info { font-size: 12px; color: #6B7280; font-weight: 400; }
+.preview-grid {
+display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+gap: 12px; max-height: 320px; overflow-y: auto; padding: 8px;
+}
+.preview-item {
+position: relative; background: white; border-radius: 12px; overflow: hidden;
+box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: grab; transition: all 0.2s;
+border: 2px solid transparent;
+}
+.preview-item:hover {
+transform: translateY(-3px); box-shadow: 0 6px 20px rgba(64,191,196,0.25);
+border-color: #40BFC4;
+}
+.preview-item.dragging { opacity: 0.5; cursor: grabbing; border-color: #28A59B; }
+.preview-item.drag-over { border-color: #10B981; transform: scale(1.05); }
+.preview-item.excluded { opacity: 0.4; filter: grayscale(100%); }
+.preview-item.is-pdf-page {
+border-color: #3B82F6; background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+}
+.preview-item.is-pdf-page .preview-order {
+background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+}
+.preview-item.is-pdf-page:hover {
+border-color: #2563EB; box-shadow: 0 6px 20px rgba(59,130,246,0.25);
+}
+.preview-thumb {
+width: 100%; height: 110px; object-fit: cover; display: block; background: #F3F4F6;
+}
+.preview-overlay {
+position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+background: rgba(64,191,196,0.9); display: flex; align-items: center;
+justify-content: center; opacity: 0; transition: opacity 0.2s;
+}
+.preview-item.is-pdf-page .preview-overlay { background: rgba(59,130,246,0.9); }
+.preview-item:hover .preview-overlay { opacity: 1; }
+.preview-checkbox {
+width: 28px; height: 28px; cursor: pointer; z-index: 2; accent-color: #40BFC4;
+}
+.preview-item.is-pdf-page .preview-checkbox { accent-color: #3B82F6; }
+.preview-info {
+padding: 8px; font-size: 11px; color: #6B7280; text-align: center;
+white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.preview-order {
+position: absolute; top: 8px; left: 8px;
+background: linear-gradient(135deg, #40BFC4 0%, #28A59B 100%);
+color: white; width: 26px; height: 26px; border-radius: 50%;
+display: flex; align-items: center; justify-content: center;
+font-size: 12px; font-weight: 700; z-index: 3;
+box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.sort-hint { font-size: 12px; color: #9CA3AF; margin-top: 10px; text-align: center; font-style: italic; }
+.footer-brand {
+margin-top: 20px; padding-top: 20px; border-top: 1px solid #E5E7EB;
+color: #6B7280; font-size: 12px;
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+.footer-brand a { color: #40BFC4; text-decoration: none; font-weight: 500; }
+.footer-brand a:hover { text-decoration: underline; }
+
+#debug-log {
+text-align: left;
+background: #1E293B;
+color: #40BFC4;
+font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+font-size: 11px;
+padding: 15px;
+border-radius: 12px;
+height: 150px;
+overflow-y: auto;
+white-space: pre-wrap;
+margin-top: 20px;
+border: 1px solid #334155;
+}
+
+.progress-container {
+width: 100%; height: 6px; background: #E5E7EB;
+border-radius: 10px; margin: 20px 0; display: none; overflow: hidden;
+}
+.progress-bar {
+width: 0%; height: 100%;
+background: linear-gradient(90deg, #40BFC4 0%, #28A59B 100%);
+border-radius: 10px; transition: width 0.3s ease;
+}
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #F1F5F9; border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: #40BFC4; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #28A59B; }
+</style>
+</head>
+<body>
+<div class="brand-header">
+<div class="brand-logo">
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="200px" height="48px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd" viewBox="0 0 15216887 3651183" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<style type="text/css">
+<![CDATA[
+.fil2 {fill:#1EAAA2;fill-rule:nonzero}
+.fil0 {fill:#355263;fill-rule:nonzero}
+.fil1 {fill:#FFCA8C;fill-rule:nonzero}
+]]>
+</style>
+</defs>
+<g id="Слой_x0020_1">
+<metadata id="CorelCorpID_0Corel-Layer"/>
+<g id="_1956152650640">
+<path class="fil0" d="M4614258 1780480l-279658 0 0 -416431 279658 0c111431,0 202015,93459 202015,208215 0,114757 -90584,208216 -202015,208216zm10493354 753601l-439885 568122 0 -568122 -132999 0 0 806621 109814 0 439616 -568032 0 568032 132729 0 0 -806621 -109275 0zm-448692 -93549l434134 0 0 -120597 -434134 0 0 120597zm-819741 770316l-197342 0 0 -251889 197342 0c97233,0 141536,65241 141536,125900 0,60838 -44303,125989 -141536,125989zm0 -381833l-197342 0 0 -294934 -133089 0 0 806621 330431 0c156454,0 274445,-109994 274445,-255843 0,-145760 -117991,-255844 -274445,-255844zm352447 511687l133089 0 0 -806621 -133089 0 0 806621zm-1025800 -468282l-416520 0 0 -338339 -132999 0 0 806621 132999 0 0 -338339 416520 0 0 338339 132999 0 0 -806621 -132999 0 0 338339zm-678564 -338339l-165261 0 -278848 319108 0 -319108 -133089 0 0 319108 -278849 -319108 -165170 0 345887 388034 -360805 418587 164721 0 294216 -347505 0 347505 133089 0 0 -347505 294215 347505 164631 0 -360714 -418587 345977 -388034zm-1449510 111342c103973,0 232479,60209 261595,228614l-543319 0c25791,-137492 136863,-228614 281724,-228614zm0 -129944c-243622,0 -420565,177482 -420565,422002 0,118262 42326,225470 118981,302034 76744,76564 187456,119879 309133,119879 152499,0 281634,-67758 354694,-185749l8087 -13390 -116913 -68746 -7549 13569c-44572,78901 -130662,124193 -236612,124193 -151960,0 -264381,-87888 -290531,-225560l677307 0 1348 -13749c1527,-15277 3055,-33070 3055,-49605 1258,-108017 -36665,-212708 -106939,-294844 -74137,-84113 -181256,-131651 -293496,-130034zm-960828 129944c161396,-809 292777,129225 293676,290531 809,161306 -129315,292777 -290621,293586 -161306,899 -292777,-129225 -293586,-290441 0,-629 0,-1078 0,-1618 -2157,-159149 125181,-289901 284330,-292058 1977,0 4044,0 6021,0l180 0zm7638 -129944c-119789,0 -226008,49875 -298169,138391l0 -119789 -133089 0 0 1117102 133089 0 0 -429910c72161,88516 178470,138480 298169,138480 110174,270 215674,-43584 293227,-121766 163283,-166788 163283,-433684 0,-600562 -77553,-78182 -183053,-122215 -293227,-121946zm-952920 129944c103973,0 232479,60209 261595,228614l-543319 0c25881,-137492 137043,-228614 281724,-228614zm0 -129944c-243712,0 -420564,177482 -420564,422002 0,118262 42236,225470 118890,302034 76744,76564 187367,119879 309223,119879 152409,0 281634,-67758 354604,-185749l8178 -13390 -117004 -68746 -7638 13479c-44483,78901 -130663,124193 -236523,124193 -151960,0 -264290,-87887 -290980,-225559l677306 0 1348 -13750c1528,-15277 3146,-33160 3146,-49605 1258,-108017 -36755,-212798 -107029,-294754 -74048,-84023 -181076,-131562 -292957,-130034zm-917334 710916c-152410,0 -267615,-109545 -267615,-254765 0,-116913 102804,-237781 275254,-237781 152319,0 254765,99390 254765,247037 90,142255 -110354,245509 -262404,245509l0 0zm21747 -622400c-76025,0 -174246,23725 -251350,86540 34238,-61737 92201,-103794 196982,-148905 20939,-9167 42327,-18063 63085,-26690 134437,-55626 261505,-108107 284151,-250272l1707 -10424 -109454 -63085 -3236 22376c-13299,94897 -93099,128686 -203362,175325 -31992,13480 -64972,27409 -100109,44303 -262403,126350 -306617,259978 -306617,512316 0,240028 170922,414185 406456,414185 109904,0 210282,-38283 282893,-107119 73419,-70992 114217,-169124 112779,-271210 -179,-218909 -157352,-377340 -373925,-377340zm-968556 625455c-161306,899 -292778,-129224 -293587,-290531 -898,-161306 129225,-292687 290531,-293586 161217,-809 292688,129225 293587,290531 0,539 0,1078 0,1617 2157,159150 -125091,289813 -284241,291969 -2156,90 -4223,90 -6290,0zm0 -713971c-237511,0 -423530,185300 -423530,422002 0,236613 186019,421913 423530,421913 237421,0 423530,-185300 423530,-421913 0,-236702 -185749,-422002 -423530,-422002zm-783886 695549l-259438 0 0 -211540 259438 0c80069,0 125990,37473 125990,102715 0,89774 -68477,108645 -125990,108645l0 180zm-31003 -341484l-228435 0 0 -205519 228435 0c99390,0 119789,54098 119789,99389 90,70364 -40349,106130 -119789,106130zm178830 54009c48527,-38193 73868,-95257 73868,-166249 0,-135605 -99390,-223223 -252698,-223223l-361434 0 0 806621 392437 0c157353,0 259079,-91302 259079,-232479 0,-82675 -40259,-148545 -111252,-184670zm-1096164 -278130c103973,0 232479,60209 261685,228614l-543229 0c25791,-137492 136953,-228614 281544,-228614zm0 -129944c-243622,0 -420474,177482 -420474,422002 0,118262 42146,225470 118890,302034 76744,76564 187367,119879 309223,119879 152320,0 281544,-67758 354514,-185749l8178 -13390 -116914 -68746 -7638 13479c-44393,78901 -130663,124193 -236613,124193 -151960,0 -264200,-87887 -290531,-225559l677037 0 1348 -13750c1618,-15277 3235,-33160 3235,-49605 1259,-108017 -36754,-212798 -107028,-294754 -74048,-84113 -181166,-131562 -293227,-130034zm-1334573 327286c0,181256 -27139,293137 -82855,342113 -30554,27139 -71083,36485 -126529,29206l-17254 -2247 0 127697 14019 1078c15277,1438 30554,2067 44842,2067 80519,0 141177,-20848 188356,-64343 79889,-73419 118620,-214775 118620,-432516l0 -489311 456870 0 0 984013 139469 0 0 -1116832 -735538 0 0 619075zm2937032 -1282632l366646 353346 180447 0 -431528 -418678 417240 -387943 -184671 0 -348134 323241 0 -323241 -132999 0 0 806621 132999 0 0 -353346zm-472866 -114937l-416430 0 0 -338338 -132999 0 0 806621 132999 0 0 -338339 416430 0 0 338339 132999 0 0 -806621 -132999 0 0 338338zm-1180007 356941c-161306,899 -292687,-129225 -293496,-290531 -899,-161306 129225,-292778 290531,-293586 161216,-899 292688,129224 293586,290531 0,449 0,988 0,1527 2157,159150 -125091,289902 -284150,292149 -2157,90 -4314,90 -6381,0l-90 -90zm-7638 129944c119879,0 226098,-49875 298259,-138391l0 120148 132909 0 0 -806980 -132909 0 0 119789c-72161,-88517 -178380,-138481 -298169,-138481 -110084,-270 -215674,43584 -293137,121676 -163553,166878 -163553,433864 0,600562 77463,78182 183053,121946 293047,121677zm-862966 -701031l-279658 0 0 -301584 527593 0 0 -133089 -666792 0 0 1117461 418857 0c188445,0 341214,-152859 341214,-341304 0,-188445 -152769,-341215 -341214,-341215l0 -269z"/>
+<path class="fil1" d="M2312835 2181364l-1628609 0 1759362 -1771403c21657,-21748 33609,-51313 33249,-81957l0 -247036c0,-71622 -85910,-108556 -136324,-56615l-2309779 2326585c-65422,64612 -19501,176583 72161,176583l2012868 0c30374,-270 59580,-12222 81327,-33519l173169 -174337c31452,-31992 30913,-83574 -1169,-115026 -15007,-14738 -35137,-23095 -56255,-23275z"/>
+<path class="fil2" d="M3111908 38192l-1968116 1982674 485985 0 1313636 -1322801 0 2286685 -2270869 0 293496 -295563 -485985 0 -441324 444468c-72250,72790 -20668,197432 81328,197432l3019347 0c82406,-90 149175,-67039 148995,-149444 0,-180 0,-450 0,-630l0 -3068952c-1168,-93459 -112330,-139649 -176493,-73869z"/>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<div class="box">
+<div class="drop-zone" id="dropZone" onclick="document.getElementById('input').click()">
+<span class="drop-zone-icon">📁</span>
+<strong>Нажмите или перетащите файлы</strong>
+<p>HEIC • WebP • JPG • PNG • PDF</p>
+<input type="file" id="input" multiple accept=".heic,.heif,.webp,image/*,.pdf" style="display:none">
+</div>
+<div class="file-info-bar" id="fileInfoBar">
+<div class="file-count" id="fileCount">0 файлов в буфере</div>
+<button class="btn-reset" onclick="resetSession()">
+<span>🗑️</span>
+<span>Новая сессия</span>
+</button>
+</div>
+
+<div class="compress-toggle" id="compressToggle" onclick="toggleCompression(event)">
+    <div class="toggle-switch" id="toggleSwitch"></div>
+    <span class="toggle-label">Сжимать файлы</span>
+    <div class="slider-container" id="widthSliderContainer" onclick="event.stopPropagation()">
+        <span class="slider-label">Ширина:</span>
+        <input type="range" id="maxWidthSlider" min="800" max="3000" step="100" value="1200" 
+               onchange="updateSliderValue()" onclick="event.stopPropagation()">
+        <span class="slider-value" id="widthValue">1200px</span>
+    </div>
+    <div class="slider-container" id="qualitySliderContainer" onclick="event.stopPropagation()">
+        <span class="slider-label">Качество:</span>
+        <input type="range" id="qualitySlider" min="50" max="85" step="5" value="75" 
+               onchange="updateSliderValue()" onclick="event.stopPropagation()">
+        <span class="slider-value" id="qualityValue">75%</span>
+    </div>
+</div>
+
+<div class="files-section" id="filesSection">
+<div class="section-title">
+<span></span>
+Файлы для конвертации
+<span class="section-info" id="fileCountLabel"></span>
+</div>
+<div class="preview-grid" id="previewGrid"></div>
+<div class="sort-hint">👆 Перетащите для изменения порядка • Кликните для выбора</div>
+</div>
+
+<div class="progress-container" id="progressWrap">
+<div class="progress-bar" id="progressBar"></div>
+</div>
+
+<div class="btn-container">
+    <button id="btnZip" class="btn btn-zip" onclick="process('zip')" disabled>📦 Скачать ZIP (JPG)</button>
+    <button id="btnPdf" class="btn btn-pdf" onclick="process('pdf')" disabled>📕 Создать PDF</button>
+</div>
+
+<div class="watermark-section" id="watermarkSection">
+    <div class="watermark-toggle">
+        <div class="toggle-switch" id="watermarkToggle" onclick="toggleWatermark(event)"></div>
+        <span class="toggle-label" onclick="toggleWatermark(event)" style="cursor: pointer">Добавить водяной знак</span>
+    </div>
+    <div class="watermark-options" id="watermarkOptions">
+        <div class="position-selector">
+            <label>Позиция</label>
+            <div class="position-grid">
+                <button class="position-btn" data-pos="top-left" onclick="selectPosition('top-left')">TL</button>
+                <button class="position-btn" data-pos="top-center" onclick="selectPosition('top-center')">TC</button>
+                <button class="position-btn" data-pos="top-right" onclick="selectPosition('top-right')">TR</button>
+                <button class="position-btn" data-pos="middle-left" onclick="selectPosition('middle-left')">ML</button>
+                <button class="position-btn" data-pos="center" onclick="selectPosition('center')">C</button>
+                <button class="position-btn" data-pos="middle-right" onclick="selectPosition('middle-right')">MR</button>
+                <button class="position-btn" data-pos="bottom-left" onclick="selectPosition('bottom-left')">BL</button>
+                <button class="position-btn" data-pos="bottom-center" onclick="selectPosition('bottom-center')">BC</button>
+                <button class="position-btn active" data-pos="bottom-right" onclick="selectPosition('bottom-right')">BR</button>
+            </div>
+        </div>
+        <div class="sliders-column">
+            <div class="slider-container" onclick="event.stopPropagation()">
+                <span class="slider-label">Размер:</span>
+                <input type="range" id="watermarkSize" min="10" max="50" step="5" value="30" 
+                       onchange="updateWatermarkSize()" onclick="event.stopPropagation()">
+                <span class="slider-value" id="sizeValue">30%</span>
+            </div>
+            <div class="slider-container" onclick="event.stopPropagation()">
+                <span class="slider-label">Прозрачность:</span>
+                <input type="range" id="watermarkOpacity" min="10" max="100" step="5" value="30" 
+                       onchange="updateWatermarkOpacity()" onclick="event.stopPropagation()">
+                <span class="slider-value" id="opacityValue">30%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="debug-log">> Инициализация системы...</div>
+<div class="footer-brand">
+<p>© 2026 BL tmkuav@nskbl.ru • <a href="#">Безопасность</a> • <a href="#">Помощь</a></p>
+</div>
+</div>
+
+<script>
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+const input = document.getElementById('input');
+const dropZone = document.getElementById('dropZone');
+const logBox = document.getElementById('debug-log');
+const pBar = document.getElementById('progressBar');
+const pWrap = document.getElementById('progressWrap');
+const filesSection = document.getElementById('filesSection');
+const previewGrid = document.getElementById('previewGrid');
+const fileCountLabel = document.getElementById('fileCountLabel');
+const fileInfoBar = document.getElementById('fileInfoBar');
+const fileCountLabelBar = document.getElementById('fileCount');
+const watermarkSection = document.getElementById('watermarkSection');
+
+let heifDecoder = null;
+let allFiles = [];
+let dragSrcEl = null;
+let fileIdCounter = 0;
+
+let compressEnabled = false;
+let maxWidth = 1200;
+let jpegQuality = 0.75;
+
+let watermarkEnabled = false;
+let watermarkPosition = 'bottom-right';
+let watermarkOpacity = 0.3;
+let watermarkSize = 0.3;
+let watermarkImg = null;
+
+const WATERMARK_URL = 'https://static.faktura.ru/cdn/img/web/1.0/logo/nskbl/logo.svg';
+
+function toggleCompression(event) {
+    if (event && event.target.closest('.slider-container')) return;
+    compressEnabled = !compressEnabled;
+    const toggle = document.getElementById('toggleSwitch');
+    const toggleContainer = document.getElementById('compressToggle');
+    const widthSliderContainer = document.getElementById('widthSliderContainer');
+    const qualitySliderContainer = document.getElementById('qualitySliderContainer');
+    
+    if (compressEnabled) {
+        toggle.classList.add('active');
+        toggleContainer.classList.add('active-toggle');
+        widthSliderContainer.style.opacity = '1'; widthSliderContainer.style.pointerEvents = 'auto';
+        qualitySliderContainer.style.opacity = '1'; qualitySliderContainer.style.pointerEvents = 'auto';
+        maxWidth = 1200; jpegQuality = 0.75;
+        document.getElementById('maxWidthSlider').value = 1200;
+        document.getElementById('qualitySlider').value = 75;
+        document.getElementById('widthValue').textContent = '1200px';
+        document.getElementById('qualityValue').textContent = '80%';
+        addLog('✓ Сжатие включено (качество: 75%, макс. ширина: 1200px)');
+    } else {
+        toggle.classList.remove('active');
+        toggleContainer.classList.remove('active-toggle');
+        widthSliderContainer.style.opacity = '0.4'; widthSliderContainer.style.pointerEvents = 'none';
+        qualitySliderContainer.style.opacity = '0.4'; qualitySliderContainer.style.pointerEvents = 'none';
+        addLog('○ Сжатие выключено (качество: 95%, макс. ширина: 2560px)');
+    }
+}
+
+function updateSliderValue() {
+    maxWidth = parseInt(document.getElementById('maxWidthSlider').value);
+    jpegQuality = parseInt(document.getElementById('qualitySlider').value) / 100;
+    document.getElementById('widthValue').textContent = maxWidth + 'px';
+    document.getElementById('qualityValue').textContent = Math.round(jpegQuality * 100) + '%';
+    if (compressEnabled) addLog('️ Настройки: ширина ' + maxWidth + 'px, качество ' + Math.round(jpegQuality * 100) + '%');
+}
+
+function getCompressionSettings() {
+    return compressEnabled ? { quality: jpegQuality, maxSize: maxWidth } : { quality: 0.95, maxSize: 2560 };
+}
+
+function toggleWatermark(event) {
+    if (event) event.stopPropagation();
+    watermarkEnabled = !watermarkEnabled;
+    const toggle = document.getElementById('watermarkToggle');
+    const options = document.getElementById('watermarkOptions');
+    
+    if (watermarkEnabled) {
+        toggle.classList.add('active');
+        options.classList.add('show');
+        watermarkSection.style.borderColor = '#34C759';
+        watermarkSection.style.background = 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)';
+        addLog('✓ Водяной знак включён');
+        if (!watermarkImg) {
+            watermarkImg = new Image();
+            watermarkImg.crossOrigin = 'anonymous';
+            watermarkImg.onload = function() { addLog('✓ Логотип загружен'); };
+            watermarkImg.onerror = function() { addLog('⚠ Не удалось загрузить логотип', true); };
+            watermarkImg.src = WATERMARK_URL;
+        }
+    } else {
+        toggle.classList.remove('active');
+        options.classList.remove('show');
+        watermarkSection.style.borderColor = '#E5E7EB';
+        watermarkSection.style.background = '#F9FAFB';
+        addLog('○ Водяной знак выключен');
+    }
+}
+
+function selectPosition(pos) {
+    watermarkPosition = pos;
+    document.querySelectorAll('.position-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+        if (btn.dataset.pos === pos) btn.classList.add('active');
+    });
+    addLog('📍 Позиция водяного знака: ' + pos);
+}
+
+function updateWatermarkSize() {
+    const slider = document.getElementById('watermarkSize');
+    watermarkSize = parseInt(slider.value) / 100;
+    document.getElementById('sizeValue').textContent = slider.value + '%';
+    addLog('📏 Размер водяного знака: ' + slider.value + '%');
+}
+
+function updateWatermarkOpacity() {
+    const slider = document.getElementById('watermarkOpacity');
+    watermarkOpacity = parseInt(slider.value) / 100;
+    document.getElementById('opacityValue').textContent = slider.value + '%';
+    addLog('💧 Прозрачность водяного знака: ' + slider.value + '%');
+}
+
+function addLog(msg, isError) {
+    isError = isError || false;
+    const time = new Date().toLocaleTimeString();
+    logBox.innerHTML += '<span style="color:' + (isError ? '#EF4444' : '#40BFC4') + '">[' + time + '] ' + msg + '</span>\n';
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+async function initLib() {
+    try {
+        if (typeof libheif !== 'undefined') {
+            const lib = await libheif();
+            heifDecoder = new lib.HeifDecoder();
+            addLog('✓ Система готова к работе');
+        } else {
+            addLog('⚠ HEIC не поддерживается (библиотека не загружена)');
+            addLog('✓ Система готова (JPG, PNG, PDF, WebP)');
+        }
+    } catch (e) {
+        addLog('⚠ HEIC не поддерживается: ' + e.message);
+        addLog('✓ Система готова (JPG, PNG, PDF, WebP)');
+    }
+    watermarkSection.classList.add('show');
+}
+initLib();
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) {
+    dropZone.addEventListener(eventName, function(e) { e.preventDefault(); e.stopPropagation(); }, false);
+});
+['dragenter', 'dragover'].forEach(function(eventName) {
+    dropZone.addEventListener(eventName, function() { dropZone.classList.add('dragover'); }, false);
+});
+['dragleave', 'drop'].forEach(function(eventName) {
+    dropZone.addEventListener(eventName, function() { dropZone.classList.remove('dragover'); }, false);
+});
+dropZone.addEventListener('drop', function(e) { handleFiles(e.dataTransfer.files); });
+input.onchange = function() { handleFiles(input.files); };
+
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function getTotalFileSize() {
+    return allFiles.reduce(function(total, item) { return total + (item.file ? item.file.size : 0); }, 0);
+}
+
+function updateFileInfo() {
+    const count = allFiles.length;
+    if (count === 0) {
+        fileInfoBar.classList.remove('show');
+    } else {
+        const totalSize = formatFileSize(getTotalFileSize());
+        const filesWord = count === 1 ? 'файл' : (count >= 2 && count <= 4) ? 'файла' : 'файлов';
+        fileCountLabelBar.innerHTML = '<strong>' + count + '</strong> ' + filesWord + ' в буфере <span style="color: #6B7280">(' + totalSize + ')</span>';
+        fileInfoBar.classList.add('show');
+    }
+}
+
+async function handleFiles(files) {
+    if (files.length > 0) {
+        addLog('⏳ Обработка файлов...');
+        const newFiles = Array.from(files);
+        for (const file of newFiles) {
+            const isPdf = file.name.toLowerCase().endsWith('.pdf');
+            if (isPdf) {
+                try {
+                    addLog('📄 Разбор PDF: ' + file.name);
+                    const pdfData = await file.arrayBuffer();
+                    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                    const pdf = await loadingTask.promise;
+                    addLog('  Найдено страниц: ' + pdf.numPages);
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const renderScale = 3;
+                        const viewport = page.getViewport({ scale: renderScale });
+                        const originalData = { page: page, viewport: viewport, renderScale: renderScale };
+                        const previewScale = Math.min(1200 / viewport.width, 2);
+                        const scaledViewport = page.getViewport({ scale: previewScale });
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = scaledViewport.width;
+                        canvas.height = scaledViewport.height;
+                        await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+                        const previewDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                        file.id = ++fileIdCounter;
+                        allFiles.push({
+                            id: fileIdCounter, file: file, preview: previewDataUrl, included: true, element: null,
+                            isPdfPage: true, pdfPageNum: pageNum, pdfTotalPages: pdf.numPages, pdfFileName: file.name,
+                            originalData: originalData
+                        });
+                    }
+                    addLog('✓ PDF разобран на ' + pdf.numPages + ' страниц');
+                } catch (err) {
+                    addLog('✗ Ошибка разбора PDF ' + file.name + ': ' + err.message, true);
+                }
+            } else {
+                file.id = ++fileIdCounter;
+                allFiles.push({ id: fileIdCounter, file: file, preview: null, included: true, element: null, isPdfPage: false });
+            }
+        }
+        renderPreviews();
+        updateFileInfo();
+        addLog('✓ Добавлено элементов: ' + allFiles.length + ' (всего)');
+        document.getElementById('btnZip').disabled = false;
+        document.getElementById('btnPdf').disabled = false;
+    }
+}
+
+function resetSession() {
+    const count = allFiles.length;
+    if (count === 0) { alert('Нет файлов для очистки'); return; }
+    const totalSize = formatFileSize(getTotalFileSize());
+    const filesWord = count === 1 ? 'файл' : (count >= 2 && count <= 4) ? 'файла' : 'файлов';
+    if (confirm('Очистить ' + count + ' ' + filesWord + ' (' + totalSize + ') и начать новую сессию?')) {
+        allFiles = []; fileIdCounter = 0; dragSrcEl = null; previewGrid.innerHTML = '';
+        filesSection.classList.remove('show'); fileInfoBar.classList.remove('show');
+        logBox.innerHTML = '> Новая сессия...\n'; addLog('✓ Сессия очищена'); input.value = '';
+        document.getElementById('btnZip').disabled = true; document.getElementById('btnPdf').disabled = true;
+    }
+}
+
+async function renderPreviews() {
+    if (allFiles.length === 0) { filesSection.classList.remove('show'); return; }
+    filesSection.classList.add('show'); updateFileCount();
+    for (const fileObj of allFiles) {
+        if (fileObj.element) continue;
+        const item = createPreviewElement(fileObj);
+        previewGrid.appendChild(item); fileObj.element = item;
+        if (!fileObj.isPdfPage && !fileObj.preview) {
+            createPreview(fileObj.file).then(function(src) {
+                fileObj.preview = src;
+                const thumb = item.querySelector('.preview-thumb');
+                if (thumb) thumb.src = src;
+            }).catch(function(err) {
+                const thumb = item.querySelector('.preview-thumb');
+                if (thumb) thumb.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23FEE2E2" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23EF4444" font-size="10">ERROR</text></svg>';
+            });
+        }
+    }
+}
+
+function createPreviewElement(fileObj) {
+    const item = document.createElement('div');
+    item.className = 'preview-item' + (fileObj.isPdfPage ? ' is-pdf-page' : '');
+    item.draggable = true; item.dataset.id = fileObj.id;
+    const order = document.createElement('div');
+    order.className = 'preview-order'; order.textContent = allFiles.indexOf(fileObj) + 1;
+    item.appendChild(order);
+    const thumb = document.createElement('img');
+    thumb.className = 'preview-thumb';
+    thumb.alt = fileObj.isPdfPage ? (fileObj.pdfFileName + ' - стр. ' + fileObj.pdfPageNum) : fileObj.file.name;
+    thumb.src = fileObj.preview || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23F3F4F6" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%239CA3AF" font-size="10">LOADING</text></svg>';
+    item.appendChild(thumb);
+    const overlay = document.createElement('div'); overlay.className = 'preview-overlay';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox'; checkbox.className = 'preview-checkbox'; checkbox.checked = fileObj.included;
+    checkbox.addEventListener('change', function(e) {
+        fileObj.included = e.target.checked; item.classList.toggle('excluded', !fileObj.included); updateFileCount();
+    });
+    overlay.appendChild(checkbox); item.appendChild(overlay);
+    const info = document.createElement('div'); info.className = 'preview-info';
+    info.textContent = fileObj.isPdfPage ? (fileObj.pdfFileName + ' (' + fileObj.pdfPageNum + '/' + fileObj.pdfTotalPages + ')') : fileObj.file.name;
+    item.appendChild(info);
+    setupDragDrop(item); return item;
+}
+
+async function createPreview(file) {
+    if (file.name.toLowerCase().match(/\.(heic|heif)$/)) return await createHeicPreview(file);
+    return new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function(e) { resolve(e.target.result); };
+        reader.onerror = reject; reader.readAsDataURL(file);
+    });
+}
+
+async function createHeicPreview(file) {
+    if (!heifDecoder) throw new Error('Декодер не готов');
+    const buffer = await file.arrayBuffer();
+    const data = heifDecoder.decode(buffer);
+    if (!data || data.length === 0) throw new Error('HEIC не распознан');
+    const image = data[0];
+    const width = image.get_width(); const height = image.get_height();
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d'); const imageData = ctx.createImageData(width, height);
+    return new Promise(function(resolve) {
+        image.display(imageData, function(displayData) {
+            ctx.putImageData(displayData || imageData, 0, 0); image.free();
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+        });
+    });
+}
+
+function updateFileCount() {
+    const included = allFiles.filter(function(f) { return f.included; }).length;
+    fileCountLabel.textContent = '(' + included + '/' + allFiles.length + ')';
+}
+
+function setupDragDrop(item) {
+    item.addEventListener('dragstart', function(e) {
+        dragSrcEl = item; item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.dataset.id);
+    });
+    item.addEventListener('dragend', function() {
+        item.classList.remove('dragging');
+        document.querySelectorAll('.preview-item').forEach(function(i) { i.classList.remove('drag-over'); });
+    });
+    item.addEventListener('dragover', function(e) {
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move'; item.classList.add('drag-over'); return false;
+    });
+    item.addEventListener('dragleave', function() { item.classList.remove('drag-over'); });
+    item.addEventListener('drop', function(e) {
+        e.stopPropagation(); item.classList.remove('drag-over');
+        if (dragSrcEl !== item) {
+            const srcId = parseInt(dragSrcEl.dataset.id);
+            const targetId = parseInt(item.dataset.id);
+            const srcIndex = allFiles.findIndex(function(i) { return i.id === srcId; });
+            const targetIndex = allFiles.findIndex(function(i) { return i.id === targetId; });
+            if (srcIndex > -1 && targetIndex > -1) {
+                const removed = allFiles.splice(srcIndex, 1)[0];
+                allFiles.splice(targetIndex, 0, removed);
+                updatePreviewOrder(); addLog('↔️ Изменён порядок');
+            }
+        }
+        return false;
+    });
+}
+
+function updatePreviewOrder() {
+    allFiles.forEach(function(fileObj, index) {
+        const orderEl = fileObj.element.querySelector('.preview-order');
+        if (orderEl) orderEl.textContent = index + 1;
+        previewGrid.appendChild(fileObj.element);
+    });
+}
+
+function getIncludedFiles() { return allFiles.filter(function(f) { return f.included; }); }
+
+async function decodeHeic(file) {
+    if (!heifDecoder) throw new Error('Декодер не готов');
+    const buffer = await file.arrayBuffer();
+    const data = heifDecoder.decode(buffer);
+    if (!data || data.length === 0) throw new Error('Файл не распознан');
+    const image = data[0];
+    const width = image.get_width(); const height = image.get_height();
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d'); const imageData = ctx.createImageData(width, height);
+    return new Promise(function(resolve) {
+        image.display(imageData, function(displayData) {
+            ctx.putImageData(displayData || imageData, 0, 0); image.free(); resolve(canvas);
+        });
+    });
+}
+
+function applyWatermark(canvas) {
+    if (!watermarkEnabled || !watermarkImg || !watermarkImg.complete) return canvas;
+    const ctx = canvas.getContext('2d');
+    const wmWidth = canvas.width * watermarkSize;
+    const wmHeight = wmWidth * (watermarkImg.height / watermarkImg.width);
+    const padding = Math.max(10, canvas.width * 0.02);
+    let x, y;
+    switch(watermarkPosition) {
+        case 'top-left': x = padding; y = padding; break;
+        case 'top-center': x = (canvas.width - wmWidth) / 2; y = padding; break;
+        case 'top-right': x = canvas.width - wmWidth - padding; y = padding; break;
+        case 'middle-left': x = padding; y = (canvas.height - wmHeight) / 2; break;
+        case 'center': x = (canvas.width - wmWidth) / 2; y = (canvas.height - wmHeight) / 2; break;
+        case 'middle-right': x = canvas.width - wmWidth - padding; y = (canvas.height - wmHeight) / 2; break;
+        case 'bottom-left': x = padding; y = canvas.height - wmHeight - padding; break;
+        case 'bottom-center': x = (canvas.width - wmWidth) / 2; y = canvas.height - wmHeight - padding; break;
+        case 'bottom-right': default: x = canvas.width - wmWidth - padding; y = canvas.height - wmHeight - padding; break;
+    }
+    ctx.globalAlpha = watermarkOpacity;
+    ctx.drawImage(watermarkImg, x, y, wmWidth, wmHeight);
+    ctx.globalAlpha = 1.0;
+    return canvas;
+}
+
+async function process(mode) {
+    const includedFiles = getIncludedFiles();
+    pWrap.style.display = 'block';
+    document.querySelectorAll('.btn').forEach(function(b) { b.disabled = true; });
+    const zip = mode === 'zip' ? new JSZip() : null;
+    const settings = getCompressionSettings();
+    const MAX_SIDE = settings.maxSize;
+    const JPEG_QUALITY = settings.quality;
+    const totalItems = includedFiles.length;
+    let processedCount = 0;
+
+    if (mode === 'pdf' && includedFiles.length > 0) {
+        try {
+            const PDFDocument = PDFLib.PDFDocument;
+            const mergedPdf = await PDFDocument.create();
+            addLog(' Создание PDF: ' + includedFiles.length + ' страниц');
+            for (let i = 0; i < includedFiles.length; i++) {
+                const fileObj = includedFiles[i];
+                processedCount++;
+                pBar.style.width = Math.round((processedCount / (totalItems || 1)) * 100) + '%';
+                try {
+                    let canvas;
+                    if (fileObj.isPdfPage) {
+                        const page = fileObj.originalData.page;
+                        const viewport = fileObj.originalData.viewport;
+                        canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    } else if (fileObj.file.name.toLowerCase().match(/\.(heic|heif)$/)) {
+                        canvas = await decodeHeic(fileObj.file);
+                    } else {
+                        const img = new Image();
+                        const url = URL.createObjectURL(fileObj.file);
+                        await new Promise(function(res, rej) { img.onload = res; img.onerror = function() { rej(new Error('Ошибка')); }; img.src = url; });
+                        canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+                        canvas.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url);
+                    }
+                    if (canvas.width > MAX_SIDE || canvas.height > MAX_SIDE) {
+                        const factor = Math.min(MAX_SIDE / canvas.width, MAX_SIDE / canvas.height);
+                        const outCanvas = document.createElement('canvas');
+                        outCanvas.width = canvas.width * factor; outCanvas.height = canvas.height * factor;
+                        outCanvas.getContext('2d').drawImage(canvas, 0, 0, outCanvas.width, outCanvas.height);
+                        canvas = outCanvas;
+                    }
+                    canvas = applyWatermark(canvas);
+                    const jpgData = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+                    const jpgImage = await mergedPdf.embedJpg(jpgData);
+                    const page = mergedPdf.addPage([jpgImage.width, jpgImage.height]);
+                    page.drawImage(jpgImage, { x: 0, y: 0, width: jpgImage.width, height: jpgImage.height });
+                    addLog('✓ Успешно: ' + (fileObj.isPdfPage ? (fileObj.pdfFileName + ' стр.' + fileObj.pdfPageNum) : fileObj.file.name));
+                } catch (err) { addLog('✗ Ошибка: ' + err.message, true); }
+            }
+            const mergedPdfBytes = await mergedPdf.save();
+            const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = 'BL-Online_bundle.pdf'; a.click();
+            addLog('✓ Готово! Файл сохранён');
+        } catch (err) { addLog('✗ Критическая ошибка: ' + err.message, true); }
+    } else if (mode === 'zip') {
+        for (let i = 0; i < includedFiles.length; i++) {
+            const fileObj = includedFiles[i];
+            processedCount++;
+            pBar.style.width = Math.round((processedCount / (totalItems || 1)) * 100) + '%';
+            try {
+                let canvas;
+                if (fileObj.isPdfPage) {
+                    const page = fileObj.originalData.page;
+                    const viewport = fileObj.originalData.viewport;
+                    canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                } else if (fileObj.file.name.toLowerCase().match(/\.(heic|heif)$/)) {
+                    canvas = await decodeHeic(fileObj.file);
+                } else {
+                    const img = new Image();
+                    const url = URL.createObjectURL(fileObj.file);
+                    await new Promise(function(res, rej) { img.onload = res; img.onerror = function() { rej(new Error('Ошибка')); }; img.src = url; });
+                    canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+                    canvas.getContext('2d').drawImage(img, 0, 0); URL.revokeObjectURL(url);
+                }
+                if (canvas.width > MAX_SIDE || canvas.height > MAX_SIDE) {
+                    const factor = Math.min(MAX_SIDE / canvas.width, MAX_SIDE / canvas.height);
+                    const outCanvas = document.createElement('canvas');
+                    outCanvas.width = canvas.width * factor; outCanvas.height = canvas.height * factor;
+                    outCanvas.getContext('2d').drawImage(canvas, 0, 0, outCanvas.width, outCanvas.height);
+                    canvas = outCanvas;
+                }
+                canvas = applyWatermark(canvas);
+                const jpgData = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+                const fileName = fileObj.isPdfPage 
+                    ? (fileObj.pdfFileName.replace('.pdf', '') + '_page' + fileObj.pdfPageNum + '.jpg')
+                    : (fileObj.file.name.replace(/\.[^/.]+$/, '') + '.jpg');
+                zip.file(fileName, jpgData.split(',')[1], {base64: true});
+                addLog('✓ Успешно: ' + fileName);
+            } catch (err) { addLog('✗ Ошибка: ' + err.message, true); }
+        }
+        const content = await zip.generateAsync({type: 'blob'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(content);
+        a.download = 'BL-Online_images.zip'; a.click();
+        addLog('✓ Готово! Архив сохранён');
+    }
+    pWrap.style.display = 'none';
+    document.querySelectorAll('.btn').forEach(function(b) { b.disabled = false; });
+}
+</script>
+</body>
+</html>
